@@ -364,3 +364,114 @@ Notification Service
 PostgreSQL
 
 This architecture minimizes database load, improves response times, and supports large-scale notification delivery.
+
+
+# Stage 5
+
+## Problems in Current Implementation
+
+```python
+for student_id in student_ids:
+    send_email(student_id, message)
+    save_to_db(student_id, message)
+    push_to_app(student_id, message)
+```
+
+Issues:
+
+1. Sequential processing is very slow for 50,000 students.
+2. If email fails midway, processing becomes inconsistent.
+3. No retry mechanism.
+4. No fault tolerance.
+5. High API response time.
+6. Database writes block notification delivery.
+
+## Failure Scenario
+
+If email delivery fails for 200 students:
+
+- Some students receive notifications.
+- Some students receive emails.
+- Some students receive neither.
+- System enters inconsistent state.
+
+## Improved Architecture
+
+### Step 1: Save Notification Once
+
+```sql
+INSERT INTO notifications(title, message, notification_type)
+VALUES('Placement Drive', 'Amazon Hiring', 'Placement');
+```
+
+### Step 2: Publish Event to Queue
+
+Use:
+
+- RabbitMQ
+- Apache Kafka
+
+```text
+HR Request
+    ↓
+Notification Service
+    ↓
+Message Queue
+    ↓
+Worker Services
+```
+
+### Step 3: Parallel Workers
+
+Workers process batches independently:
+
+```text
+Worker 1 → Email
+Worker 2 → In-App Notification
+Worker 3 → Analytics
+```
+
+## Retry Mechanism
+
+Failed deliveries should be retried.
+
+Example:
+
+- Retry 1 after 1 minute
+- Retry 2 after 5 minutes
+- Retry 3 after 15 minutes
+
+Failed messages move to Dead Letter Queue (DLQ).
+
+## Database and Email Execution
+
+These should NOT happen sequentially.
+
+Instead:
+
+1. Save notification metadata.
+2. Push job to queue.
+3. Return success immediately.
+4. Background workers send emails and app notifications.
+
+## Benefits
+
+- Faster response time
+- High scalability
+- Fault tolerance
+- Easier monitoring
+- Handles 50,000+ students efficiently
+
+## Recommended Architecture
+
+HR Portal
+    ↓
+Notification Service
+    ↓
+Kafka / RabbitMQ
+    ↓
+Email Workers + App Notification Workers
+    ↓
+PostgreSQL + Redis Cache
+
+This architecture ensures reliable and scalable notification delivery for large user volumes.
