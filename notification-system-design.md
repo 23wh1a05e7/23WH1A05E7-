@@ -138,3 +138,93 @@ SET is_read = TRUE
 WHERE user_id = 1
 AND notification_id = 101;
 ```
+
+
+# Stage 3
+
+## Query Analysis
+
+Original Query:
+
+```sql
+SELECT *
+FROM notifications
+WHERE studentID = 1042
+  AND isRead = false
+ORDER BY createdAt ASC;
+```
+
+### Is the query accurate?
+
+Yes, it fetches unread notifications for a student.
+
+However, it is inefficient for a table containing:
+
+- 50,000 students
+- 5,000,000 notifications
+
+### Why is it slow?
+
+1. Full table scan if indexes are missing.
+2. SELECT * fetches unnecessary columns.
+3. Sorting large datasets using ORDER BY.
+4. Large number of unread notification records.
+
+### Optimized Query
+
+```sql
+SELECT notification_id,
+       title,
+       message,
+       created_at
+FROM notifications
+WHERE student_id = 1042
+  AND is_read = FALSE
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
+### Recommended Index
+
+```sql
+CREATE INDEX idx_notifications_student_read_created
+ON notifications(student_id, is_read, created_at);
+```
+
+### Likely Computational Cost
+
+Without Index:
+- O(N) table scan
+- Expensive sorting
+
+With Composite Index:
+- Approximately O(log N)
+- Faster filtering and sorting
+
+## Should We Add Indexes on Every Column?
+
+No.
+
+Reasons:
+
+- Consumes extra storage.
+- Slows INSERT and UPDATE operations.
+- Many indexes may never be used.
+- Query planner may become less efficient.
+
+Indexes should only be created for frequently searched, filtered, joined, or sorted columns.
+
+## Students Who Received Placement Notifications in Last 7 Days
+
+Assuming notification_type contains:
+- Event
+- Result
+- Placement
+
+Query:
+
+```sql
+SELECT DISTINCT student_id
+FROM notifications
+WHERE notification_type = 'Placement'
+  AND created_at >= CURRENT_DATE - INTERVAL '7 days';
