@@ -228,3 +228,139 @@ SELECT DISTINCT student_id
 FROM notifications
 WHERE notification_type = 'Placement'
   AND created_at >= CURRENT_DATE - INTERVAL '7 days';
+
+# Stage 4
+
+## Problem
+
+Notifications are fetched from the database on every page load for every student.
+
+Issues:
+
+- High database load
+- Increased response time
+- Poor user experience
+- Scalability challenges as users grow
+
+## Proposed Solutions
+
+### 1. Pagination
+
+Instead of loading all notifications:
+
+```sql
+SELECT *
+FROM notifications
+WHERE student_id = 1042
+ORDER BY created_at DESC
+LIMIT 20 OFFSET 0;
+```
+
+Benefits:
+- Reduces database load
+- Faster response times
+
+Tradeoff:
+- Additional API calls for more data
+
+---
+
+### 2. Redis Caching
+
+Store recently accessed notifications in Redis.
+
+Flow:
+
+User Request → Redis Cache → Database (only on cache miss)
+
+Benefits:
+- Very low latency
+- Reduces database queries
+
+Tradeoff:
+- Additional infrastructure
+- Cache invalidation complexity
+
+---
+
+### 3. Real-Time Notifications using WebSockets
+
+Instead of fetching notifications on every page refresh, push notifications instantly.
+
+Benefits:
+- Real-time updates
+- Better user experience
+- Fewer repeated database reads
+
+Tradeoff:
+- Persistent connections
+- More server memory usage
+
+---
+
+### 4. Notification Count Endpoint
+
+Instead of loading full notifications:
+
+```http
+GET /api/v1/notifications/unread-count
+```
+
+Response:
+
+```json
+{
+  "unreadCount": 5
+}
+```
+
+Benefits:
+- Minimal data transfer
+- Faster dashboard loading
+
+Tradeoff:
+- Requires separate API
+
+---
+
+### 5. Database Indexing
+
+```sql
+CREATE INDEX idx_notifications_student_created
+ON notifications(student_id, created_at);
+```
+
+Benefits:
+- Faster filtering
+- Faster sorting
+
+Tradeoff:
+- Additional storage
+- Slower writes
+
+---
+
+### 6. Background Processing
+
+Use message queues such as RabbitMQ or Kafka for notification delivery.
+
+Benefits:
+- Handles spikes in traffic
+- Improves reliability
+
+Tradeoff:
+- Increased architectural complexity
+
+## Recommended Architecture
+
+Client
+↓
+WebSocket Server
+↓
+Redis Cache
+↓
+Notification Service
+↓
+PostgreSQL
+
+This architecture minimizes database load, improves response times, and supports large-scale notification delivery.
